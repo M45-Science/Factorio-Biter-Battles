@@ -312,21 +312,13 @@ function Public.step(id, result)
     end
 end
 
---- When a biter unit is removed from its group (e.g. the group is disbanded
---- or the unit is separated), this function re-commands the orphaned unit with
---- the group's current command when available, falling back to a freshly built
---- chain targeting a random player structure and the rocket silo.
----@param event LuaOnUnitRemovedFromGroup
-local function on_unit_removed_from_group(event)
-    if storage.bb_game_won_by_team then
-        return
-    end
-
-    local unit = event.unit
-    if not unit.valid then
-        return
-    end
-
+--- Re-commands a biter unit that was removed from its group (e.g. the group is
+--- disbanded or the unit is separated) with the group's current command when
+--- available, falling back to a freshly built chain targeting a random player
+--- structure and the rocket silo.
+---@param unit LuaEntity
+---@param group LuaCommandable
+local function command_orphaned_unit(unit, group)
     -- BUG: During threat farming with poison capsules, biters form
     -- attack waves that target closest player structures.  This
     -- happens even with negative threat.  If in that period some
@@ -341,9 +333,10 @@ local function on_unit_removed_from_group(event)
         return
     end
 
-    local group = event.group
-    if group.valid and group.has_command then
-        commandable.set_command(group.command)
+    -- The group's command can name a target that has died since: set_command
+    -- then fails with "value for required field 'target' is missing", and the
+    -- fallback chain below is used instead.
+    if group.valid and group.has_command and pcall(commandable.set_command, group.command) then
         return
     end
 
@@ -371,6 +364,167 @@ local function on_unit_removed_from_group(event)
     end
 end
 
-Event.add(defines.events.on_unit_removed_from_group, on_unit_removed_from_group)
+---@param event LuaOnUnitRemovedFromGroup
+local function on_unit_removed_from_group(event)
+    if storage.bb_game_won_by_team then
+        return
+    end
+
+    local unit = event.unit
+    if not unit.valid then
+        return
+    end
+
+    command_orphaned_unit(unit, event.group)
+end
+
+-- Factorio 2.1 crashes (SIGSEGV in GameEvents.cpp) when a unit joins or leaves a
+-- group to answer a call for help, e.g. under a poison capsule cloud, as soon as
+-- any script listens to on_unit_removed_from_group or on_unit_added_to_group,
+-- even with an empty handler. On 2.1 the groups are watched instead: the attack
+-- groups through watch_group, the groups the game makes for a call for help
+-- through on_unit_group_created. A watched unit found in no group is
+-- re-commanded the same way, a few ticks later, for the last watched group it
+-- was seen in.
+local WATCH_GROUPS = helpers.compare_versions(script.active_mods.base, '2.1.0') >= 0
+
+---@return table
+local function get_watch()
+    local watch = storage.ai_watch
+    if not watch then
+        -- groups: the watched groups, checked in turn from index.
+        -- owner: unit number -> unique id of the last watched group the unit was seen in.
+        watch = { groups = {}, owner = {}, index = 1 }
+        storage.ai_watch = watch
+    end
+    return watch
+end
+
+--- Watches the members of a new attack group for orphans (Factorio 2.1 only).
+---@param unit_group LuaCommandable
+function Public.watch_group(unit_group)
+    if not WATCH_GROUPS or storage.bb_game_won_by_team then
+        return
+    end
+
+    local units = unit_group.members
+    if #units == 0 then
+        return
+    end
+
+    local watch = get_watch()
+    local id = unit_group.unique_id
+    local numbers = {}
+    for i, unit in ipairs(units) do
+        local unit_number = unit.unit_number
+        numbers[i] = unit_number
+        watch.owner[unit_number] = id
+    end
+    watch.groups[#watch.groups + 1] = { group = unit_group, id = id, units = units, numbers = numbers }
+end
+
+--- Watches a group the game makes for a call for help. Its members join it
+--- after it is created, so they are read again at each check.
+---@param event EventData.on_unit_group_created
+local function on_unit_group_created(event)
+    local group = event.group
+    if storage.bb_game_won_by_team or not group.valid or group.is_script_driven then
+        return
+    end
+
+    local groups = get_watch().groups
+    groups[#groups + 1] = { group = group, id = group.unique_id, units = {}, numbers = {}, made_by_game = true }
+end
+
+--- Checks one watched group per tick, in turn. A unit found in no group is
+--- re-commanded as an orphan of this group if this group is the last watched
+--- group it was seen in; otherwise it is left to that group. Dead units are
+--- dropped, and the group is dropped once it has no unit left (a group made by
+--- the game only once it is gone, since units join it later).
+local function check_watched_group()
+    local watch = storage.ai_watch
+    if not watch or #watch.groups == 0 then
+        return
+    end
+
+    if storage.bb_game_won_by_team then
+        storage.ai_watch = nil
+        return
+    end
+
+    local groups = watch.groups
+    local owner = watch.owner
+    local index = watch.index
+    if index > #groups then
+        index = 1
+    end
+
+    local entry = groups[index]
+    local group = entry.group
+    local id = entry.id
+    local units = entry.units
+    local numbers = entry.numbers
+    local members = group.valid and group.members
+    if members and entry.made_by_game then
+        local known = {}
+        for _, unit_number in ipairs(numbers) do
+            known[unit_number] = true
+        end
+        for _, unit in ipairs(members) do
+            local unit_number = unit.unit_number
+            if not known[unit_number] then
+                units[#units + 1] = unit
+                numbers[#numbers + 1] = unit_number
+            end
+            owner[unit_number] = id
+        end
+    end
+
+    if members and #members == #units then
+        watch.index = index + 1
+        return
+    end
+
+    local kept_units = {}
+    local kept_numbers = {}
+    for i, unit in ipairs(units) do
+        local unit_number = numbers[i]
+        if unit.valid then
+            local commandable = unit.commandable
+            local parent = commandable and commandable.parent_group
+            if parent and parent.unique_id == id then
+                owner[unit_number] = id
+                kept_units[#kept_units + 1] = unit
+                kept_numbers[#kept_numbers + 1] = unit_number
+            elseif owner[unit_number] == id then
+                if parent then
+                    kept_units[#kept_units + 1] = unit
+                    kept_numbers[#kept_numbers + 1] = unit_number
+                else
+                    owner[unit_number] = nil
+                    command_orphaned_unit(unit, group)
+                end
+            end
+        elseif owner[unit_number] == id then
+            owner[unit_number] = nil
+        end
+    end
+
+    if #kept_units == 0 and not (members and entry.made_by_game) then
+        table.remove(groups, index)
+        watch.index = index
+    else
+        entry.units = kept_units
+        entry.numbers = kept_numbers
+        watch.index = index + 1
+    end
+end
+
+if WATCH_GROUPS then
+    Event.add(defines.events.on_unit_group_created, on_unit_group_created)
+    Event.add(defines.events.on_tick, check_watched_group)
+else
+    Event.add(defines.events.on_unit_removed_from_group, on_unit_removed_from_group)
+end
 
 return Public

@@ -4,6 +4,7 @@ local Antigrief = require('antigrief')
 local Color = require('utils.color_presets')
 local CraftingQueueList = require('commands.crafting_queue_list')
 local Functions = require('maps.biter_battles_v2.functions')
+local Spectating = require('maps.biter_battles_v2.spectating')
 local SessionData = require('utils.datastore.session_data')
 local Utils = require('utils.core')
 local Daytime = require('maps.biter_battles_v2.daytime')
@@ -126,9 +127,9 @@ local functions = {
     end,
     ['comfy_panel_spectator_switch'] = function(event)
         if event.element.switch_state == 'left' then
-            game.get_player(event.player_index).spectator = true
+            Spectating.set(game.get_player(event.player_index), true)
         else
-            game.get_player(event.player_index).spectator = false
+            Spectating.set(game.get_player(event.player_index), false)
         end
     end,
     ['comfy_panel_want_pings_switch'] = function(event)
@@ -500,7 +501,7 @@ local build_config_gui = function(player, frame)
     scroll_pane.add({ type = 'line' })
 
     switch_state = 'right'
-    if player.spectator then
+    if Spectating.get(player) then
         switch_state = 'left'
     end
     add_switch(

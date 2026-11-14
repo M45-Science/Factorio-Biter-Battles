@@ -5,6 +5,7 @@ local Task = require('utils.task')
 local Event = require('utils.event')
 local Gui = require('utils.gui')
 local gui_style = require('utils.utils').gui_style
+local Spectating = require('maps.biter_battles_v2.spectating')
 
 ---@return number, number, number #success percent[0-1], yes count, no count
 local function get_suspend_stats()
@@ -117,7 +118,7 @@ local function punish_player(player)
     if player.character then
         player.clear_cursor()
         if player.character.has_items_inside() then
-            if player.spectator then
+            if Spectating.get(player) then
                 if storage.chosen_team[player.name] then
                     join_team(player, storage.chosen_team[player.name], true)
                     force_death_on_spot(player.character)
@@ -127,7 +128,7 @@ local function punish_player(player)
             end
         end
     end
-    if not player.spectator then
+    if not Spectating.get(player) then
         player.ticks_to_respawn = nil -- force respawn if dead
         spectate(player, false, false)
     end

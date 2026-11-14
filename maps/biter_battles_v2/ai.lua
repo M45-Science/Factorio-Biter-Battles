@@ -382,6 +382,11 @@ local function create_attack_group(surface, force_name, biter_force_name)
             MultiSilo.track_group(unit_group_boss)
         end
     end
+
+    AiStrikes.watch_group(unit_group)
+    if has_boss_units then
+        AiStrikes.watch_group(unit_group_boss)
+    end
 end
 
 Public.pre_main_attack = function()

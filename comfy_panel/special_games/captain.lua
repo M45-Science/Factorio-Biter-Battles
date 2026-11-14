@@ -138,6 +138,13 @@ local RESEARCH_ACTIONS = {
     defines.input_action.cancel_research,
     defines.input_action.move_research,
 }
+-- Factorio 2.1 labs can set the research from circuit conditions; editing
+-- those conditions is a research action too. Both are nil on 2.0.
+for _, name in ipairs({ 'change_research_condition', 'drag_research_condition' }) do
+    if defines.input_action[name] then
+        RESEARCH_ACTIONS[#RESEARCH_ACTIONS + 1] = defines.input_action[name]
+    end
+end
 
 -- Clone all permissions from Default, then disable research actions.
 local function sync_research_group_permissions(group)

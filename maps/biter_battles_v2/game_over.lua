@@ -411,7 +411,9 @@ local function freeze_all_biters(surface)
 
     for _, e in pairs(surface.find_entities_filtered(filter)) do
         if e.name ~= 'atomic-rocket' then
-            e.active = false
+            -- LuaEntity.active is read-only on Factorio 2.1. On 2.0 writing it only
+            -- set disabled_by_script, which both versions have.
+            e.disabled_by_script = true
         end
     end
 end

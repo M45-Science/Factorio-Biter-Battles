@@ -152,6 +152,31 @@ local function initial_product_infos()
     return result
 end
 
+-- Factorio 2.1 replaced LuaRecipe.category (one name) with LuaRecipe.categories (a list).
+-- script.active_mods.base is the game version; helpers.compare_versions exists on 2.0 and 2.1.
+local HAS_RECIPE_CATEGORY = helpers.compare_versions(script.active_mods.base, '2.1.0') < 0
+
+---The recipe category the cost model reads. On 2.0 it is LuaRecipe.category,
+---as before. On 2.1 a recipe lists its categories: a crafting one wins, else
+---smelting, so each recipe gets the crafting speed it got on 2.0. The tables
+---built by hand in find_all_costs have no category on either version.
+---@param recipe LuaRecipe|table
+---@return string?
+local function recipe_category(recipe)
+    if HAS_RECIPE_CATEGORY or type(recipe) ~= 'userdata' then
+        return recipe.category
+    end
+    local smelting
+    for _, c in ipairs(recipe.categories) do
+        if c == 'crafting' or c == 'basic-crafting' or c == 'crafting-with-fluid' or c == 'advanced-crafting' then
+            return c
+        elseif c == 'smelting' then
+            smelting = c
+        end
+    end
+    return smelting
+end
+
 local get_product_info, get_product_info_uncached
 
 ---@param product string
@@ -195,7 +220,7 @@ function get_product_info_uncached(product, recipes, cache)
     end
     local productivity = recipe_productivity[product]
     local crafting_speed = 1
-    local category = recipe.category
+    local category = recipe_category(recipe)
     if
         category == 'crafting'
         or category == 'basic-crafting'

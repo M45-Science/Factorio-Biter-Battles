@@ -22,6 +22,7 @@ local String = require('utils.string')
 local Token = require('utils.token')
 local Color = require('utils.color_presets')
 local ResearchInfo = require('maps.biter_battles_v2.research_info')
+local Balance21 = require('maps.biter_battles_v2.balance_21')
 local DifficultyVote = require('maps.biter_battles_v2.difficulty_vote')
 local ComfyMain = require('comfy_panel.main')
 local ComfyPoll = require('comfy_panel.poll')
@@ -544,7 +545,7 @@ local function profile(profilers, key, fn)
 
     local profiler = profilers[key]
     if not profiler then
-        profiler = { profiler = game.create_profiler(), count = 1 }
+        profiler = { profiler = helpers.create_profiler(), count = 1 }
         profilers[key] = profiler
     else
         profiler.profiler.restart()
@@ -792,6 +793,13 @@ Event.add(defines.events.on_robot_built_entity, on_robot_built_entity)
 Event.add(defines.events.on_robot_built_tile, on_robot_built_tile)
 Event.add(defines.events.on_player_dropped_item_into_entity, on_player_dropped_item_into_entity)
 Event.add(defines.events.on_tick, on_tick)
+if Balance21.ACTIVE then
+    -- Factorio 2.1: back to the 2.0 shotgun (balance_21.lua). Nothing on 2.0.
+    Event.add(defines.events.on_research_finished, Balance21.on_research)
+    Event.add(defines.events.on_research_reversed, Balance21.on_research)
+    Event.on_nth_tick(2, Balance21.poll_players)
+    Event.on_configuration_changed(Balance21.on_configuration_changed)
+end
 Event.on_init(on_init)
 
 script.on_event(defines.events.on_entity_damaged, on_entity_damaged, {

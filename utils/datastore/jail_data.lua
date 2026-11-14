@@ -227,7 +227,7 @@ local on_player_changed_surface = function(event)
     end
 
     local surface = game.surfaces['gulag']
-    if player.physical_surface.index ~= surface.index then
+    if player.surface.index ~= surface.index then
         local p_data = get_player_data(player)
         if jailed[player.name] and p_data and p_data.locked then
             teleport_player_to_gulag(player, 'jail')
@@ -363,6 +363,11 @@ local jail = function(player, griefer, msg)
     -- Only perform teleport and character operations if player is online
     if connected then
         teleport_player_to_gulag(g, 'jail')
+
+        if g.surface.name == 'gulag' then
+            local gulag = get_gulag_permission_group()
+            gulag.add_player(griefer)
+        end
 
         if g.character and g.character.valid and g.character.driving then
             g.character.driving = false
@@ -545,6 +550,10 @@ Event.add(defines.events.on_player_joined_game, function(event)
             -- Player is still on gulag; move them to the main surface before spectating
             local main_surface = game.surfaces[storage.bb_surface_name]
             local pos = main_surface.find_non_colliding_position('character', { 0, 0 }, 4, 1) or { 0, 0 }
+            -- Factorio 2.1: teleport no longer leaves remote view; on 2.0 it did, here.
+            if player.controller_type == defines.controllers.remote then
+                player.exit_remote_view()
+            end
             player.teleport(pos, main_surface)
             get_player_data(player, true)
             spectate(player, true)

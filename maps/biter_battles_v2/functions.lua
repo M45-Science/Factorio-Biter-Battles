@@ -1,5 +1,6 @@
 local _TEST = storage['_TEST'] or false
 local Color = require('utils.color_presets')
+local Spectating = require('maps.biter_battles_v2.spectating')
 local Tables = require('maps.biter_battles_v2.tables')
 local ClosableFrame, Config, Gui, Server, simplex_noise
 if not _TEST then
@@ -318,6 +319,10 @@ function Functions.init_player(player)
 
     local s = game.surfaces[storage.bb_surface_name]
     local p = find_teleport_point(s)
+    -- Factorio 2.1: teleport no longer leaves remote view; on 2.0 it did, here.
+    if player.controller_type == defines.controllers.remote then
+        player.exit_remote_view()
+    end
     player.teleport(p, s)
 
     -- Avoid using create_character() as even though it was called, player in
@@ -346,7 +351,7 @@ function Functions.init_player(player)
         )
     end
 
-    player.spectator = true
+    Spectating.set(player, true)
     player.show_on_map = false
     player.force = game.forces.spectator
     game.permissions.get_group('spectator').add_player(player)

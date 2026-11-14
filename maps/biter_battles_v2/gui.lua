@@ -14,6 +14,7 @@ local PlayerUtils = require('utils.player')
 local ResearchInfo = require('maps.biter_battles_v2.research_info')
 local Server = require('utils.server')
 local Shortcuts = require('maps.biter_battles_v2.shortcuts')
+local Spectating = require('maps.biter_battles_v2.spectating')
 local Tables = require('maps.biter_battles_v2.tables')
 local TeamStatsCompare = require('maps.biter_battles_v2.team_stats_compare')
 local gui_style = require('utils.utils').gui_style
@@ -1026,7 +1027,7 @@ function join_team(player, force_name, forced_join, auto_join)
     if not player.character then
         return
     end
-    if not player.spectator then
+    if not Spectating.get(player) then
         return
     end
     if not forced_join and storage.reroll_time_left and storage.reroll_time_left > 0 then
@@ -1127,7 +1128,7 @@ function join_team(player, force_name, forced_join, auto_join)
         Sounds.notify_allies(player.force, 'utility/build_blueprint_large')
         Server.to_discord_bold(msg)
         storage.spectator_rejoin_delay[player.name] = game.tick
-        player.spectator = false
+        Spectating.set(player, false)
         player.show_on_map = true
         Public.burners_balance(player)
         if storage.quasi_admin_mode then
@@ -1171,7 +1172,7 @@ function join_team(player, force_name, forced_join, auto_join)
     player.insert({ name = 'wood', count = 2 })
     storage.chosen_team[player.name] = force_name
     storage.spectator_rejoin_delay[player.name] = game.tick
-    player.spectator = false
+    Spectating.set(player, false)
     player.show_on_map = true
     Public.burners_balance(player)
     MultiSilo.on_player_changed_force(player)
@@ -1196,6 +1197,10 @@ function spectate(player, forced_join, stored_position)
         if player.ticks_to_respawn then
             -- Character cannot be created while dead, we can only speed up
             -- respawn and pray it doesn't race.
+            -- Factorio 2.1: teleport no longer leaves remote view; on 2.0 it did, here.
+            if player.controller_type == defines.controllers.remote then
+                player.exit_remote_view()
+            end
             player.teleport(origin)
             player.ticks_to_respawn = nil
             if not player.character then
@@ -1211,6 +1216,10 @@ function spectate(player, forced_join, stored_position)
                 -- We cannot trust LuaPlayer::physical_surface as they might be trapped
                 -- on another surface.
                 local s = game.surfaces[storage.bb_surface_name]
+                -- Factorio 2.1: teleport no longer leaves remote view; on 2.0 it did, here.
+                if player.controller_type == defines.controllers.remote then
+                    player.exit_remote_view()
+                end
                 player.teleport(origin, s)
                 local ch = s.create_entity({
                     name = 'character',
@@ -1273,7 +1282,7 @@ function spectate(player, forced_join, stored_position)
     Admin.switch_to_admin_mode(player, false)
     storage.spectator_rejoin_delay[player.name] = game.tick
     Public.create_main_gui(player)
-    player.spectator = true
+    Spectating.set(player, true)
     player.show_on_map = false
     CraftingQueueList.on_team_changed(player)
 end

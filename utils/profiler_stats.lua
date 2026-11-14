@@ -29,8 +29,11 @@ function Public.new()
             -- we can leverage (abuse) `LuaPlayer::request_translation` to convert this lua object to
             -- localized string.
             local perm_group = player.permission_group
-            if perm_group and not perm_group.allows_action(defines.input_action.translate_string) then
-                perm_group.set_allows_action(defines.input_action.translate_string, true)
+            -- translate_string is gone in Factorio 2.1 (nil there), where
+            -- request_translation no longer needs it.
+            local translate_string = defines.input_action.translate_string
+            if translate_string and perm_group and not perm_group.allows_action(translate_string) then
+                perm_group.set_allows_action(translate_string, true)
             end
             local req_id = player.request_translation(profiler)
             if not req_id then

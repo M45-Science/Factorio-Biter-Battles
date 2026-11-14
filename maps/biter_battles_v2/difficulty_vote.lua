@@ -7,6 +7,7 @@ local Gui = require('utils.gui')
 local gui_style = require('utils.utils').gui_style
 local closable_frame = require('utils.ui.closable_frame')
 local Functions = require('maps.biter_battles_v2.functions')
+local Spectating = require('maps.biter_battles_v2.spectating')
 local Utils = require('utils.utils')
 local GUI_THEMES = Utils.GUI_THEMES
 local GUI_VARIANTS = Utils.GUI_VARIANTS
@@ -118,7 +119,7 @@ local function poll_difficulty(player)
             then
                 return
             end
-            if not is_captain_enabled() and player.spectator and not storage.bb_settings.only_admins_vote then
+            if not is_captain_enabled() and Spectating.get(player) and not storage.bb_settings.only_admins_vote then
                 return
             end
         else
@@ -212,7 +213,7 @@ local function on_player_joined_game(event)
                             poll_difficulty(player)
                         end
                     else
-                        if not storage.bb_settings.only_admins_vote and not player.spectator then
+                        if not storage.bb_settings.only_admins_vote and not Spectating.get(player) then
                             poll_difficulty(player)
                         end
                     end
@@ -302,7 +303,7 @@ local function on_gui_click(event)
                         difficulty_voted(player, i)
                     end
                 else
-                    if not player.spectator or is_vote_allowed_in_captain(player.name) then
+                    if not Spectating.get(player) or is_vote_allowed_in_captain(player.name) then
                         difficulty_voted(player, i)
                     end
                 end
@@ -316,12 +317,12 @@ local function on_gui_click(event)
         return
     end
 
-    if player.spectator and not is_captain_enabled() then
+    if Spectating.get(player) and not is_captain_enabled() then
         player.print("spectators can't vote for difficulty")
         event.element.parent.destroy()
         return
     end
-    if player.spectator and is_captain_enabled() and not is_vote_allowed_in_captain(player.name) then
+    if Spectating.get(player) and is_captain_enabled() and not is_vote_allowed_in_captain(player.name) then
         player.print('You must first sign up to play in order to vote in captain game')
         event.element.parent.destroy()
         return

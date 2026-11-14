@@ -1,5 +1,6 @@
 local ClosableFrame = require('utils.ui.closable_frame')
 local Functions = require('maps.biter_battles_v2.functions')
+local Spectating = require('maps.biter_battles_v2.spectating')
 local Gui = require('utils.gui')
 local Server = require('utils.server')
 local gui_style = require('utils.utils').gui_style
@@ -100,6 +101,10 @@ local function leave_corpse(player)
     -- In a situtation when player looks at chunk which was not generated yet
     -- removing the character and subsequent attempt to create it will fail
     -- silently. Reposition the view to middle of the surface.
+    -- Factorio 2.1: teleport no longer leaves remote view; on 2.0 it did, here.
+    if player.controller_type == defines.controllers.remote then
+        player.exit_remote_view()
+    end
     player.teleport({ 0, 0 })
     player.create_character()
 end
@@ -124,6 +129,9 @@ function Public.switch_force(player_name, force_name, origin)
     end
 
     local player = game.get_player(player_name)
+    -- Read the spectating flag before the force changes: a player with no
+    -- stored flag yet is seeded from the force, and join_team reads it below.
+    Spectating.get(player)
     player.force = game.forces[force_name]
     local trace
     if origin then

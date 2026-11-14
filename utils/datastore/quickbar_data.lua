@@ -22,6 +22,11 @@ end)
 
 local Public = {}
 
+-- Factorio 2.1 addresses a quick bar slot as (page, slot) and returns a
+-- QuickBarSlot table; 2.0 took one index 1..100 and returned an ItemFilter.
+-- script.active_mods.base is the game version; helpers.compare_versions exists on 2.0 and 2.1.
+local QUICKBAR_PAGES = helpers.compare_versions(script.active_mods.base, '2.1.0') >= 0
+
 local function is_game_modded()
     local i = 0
     for k, _ in pairs(script.active_mods) do
@@ -55,7 +60,12 @@ local fetch_quickbar = Token.register(function(data)
     if value then
         for i, slot in pairs(value) do
             if slot and slot ~= '' then
-                player.set_quick_bar_slot(i, slot)
+                if QUICKBAR_PAGES then
+                    local width = player.quick_bar_width
+                    player.set_quick_bar_slot(math.floor((i - 1) / width) + 1, (i - 1) % width + 1, slot)
+                else
+                    player.set_quick_bar_slot(i, slot)
+                end
             end
         end
     end
@@ -127,10 +137,27 @@ function Public.save_quickbar(player)
 
     local slots = {}
 
-    for i = 1, 100 do
-        local slot = player.get_quick_bar_slot(i)
-        if slot ~= nil then
-            slots[i] = slot.name
+    if QUICKBAR_PAGES then
+        -- Same numbering as 2.0: slot i is on page ceil(i / width). This runs in a
+        -- command, outside the event xpcall, so a bad read ends the scan instead
+        -- of raising.
+        local width = player.quick_bar_width
+        for i = 1, 100 do
+            local ok, slot = pcall(player.get_quick_bar_slot, math.floor((i - 1) / width) + 1, (i - 1) % width + 1)
+            if not ok then
+                break
+            end
+            local name = slot and ((slot.filter and slot.filter.name) or (slot.item and slot.item.name))
+            if name then
+                slots[i] = name
+            end
+        end
+    else
+        for i = 1, 100 do
+            local slot = player.get_quick_bar_slot(i)
+            if slot ~= nil then
+                slots[i] = slot.name
+            end
         end
     end
     slots[212] = 'IGNOREME' -- Dirty workaround : Needed, otherwise the list format displayed is different depending on how quickbar was set

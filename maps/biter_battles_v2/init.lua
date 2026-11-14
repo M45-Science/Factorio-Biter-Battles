@@ -2,6 +2,7 @@ local Terrain = require('maps.biter_battles_v2.terrain')
 local Daytime = require('maps.biter_battles_v2.daytime')
 local Score = require('comfy_panel.score')
 local Tables = require('maps.biter_battles_v2.tables')
+local Balance21 = require('maps.biter_battles_v2.balance_21')
 local Blueprint = require('maps.biter_battles_v2.blueprints')
 local Functions = require('maps.biter_battles_v2.functions')
 local AiTargets = require('maps.biter_battles_v2.ai_targets')
@@ -549,6 +550,8 @@ function Public.forces()
             game.forces[force].set_turret_attack_modifier(turret_category, value)
         end
     end
+    -- Factorio 2.1: back to the 2.0 shotgun (balance_21.lua). No-op on 2.0.
+    Balance21.on_forces_reset()
 end
 
 return Public

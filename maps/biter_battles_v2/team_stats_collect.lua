@@ -344,6 +344,10 @@ function TeamStatsCollect.compute_stats()
     return stats
 end
 
+-- Factorio 2.1 removed LuaEntity.fluidbox (LuaFluidBox); its segment queries moved onto LuaEntity.
+-- script.active_mods.base is the game version; helpers.compare_versions exists on 2.0 and 2.1.
+local HAS_FLUIDBOX = helpers.compare_versions(script.active_mods.base, '2.1.0') < 0
+
 ---Counts fluids of mined entities as lost, since it's discarded instead of
 ---transferred to any inventory.
 ---@param entity LuaEntity
@@ -388,7 +392,7 @@ local function on_gone_entity(entity, force)
     -- fluidboxes is removed and so capacity of an overall connected segment shrinks.
     -- If a fluid transferred from an entity to segment will exceed it's capacity,
     -- we count that as a loss.
-    local boxes = #entity.fluidbox
+    local boxes = HAS_FLUIDBOX and #entity.fluidbox or 0
     for box_id = 1, boxes do
         -- If the entity is not a part of the segment, it will be nil
         local seg_fluids = entity.fluidbox.get_fluid_segment_contents(box_id)
@@ -414,6 +418,21 @@ local function on_gone_entity(entity, force)
         end
 
         ::next_fluidbox::
+    end
+    if not HAS_FLUIDBOX then
+        -- Factorio 2.1: the same reckoning through the fluid storage API of
+        -- LuaEntity. Storages without a segment (a fluid turret's internal
+        -- buffer, a fluid wagon) are skipped, as 2.0 returned nil for them.
+        for i = 1, entity.fluids_count do
+            if entity.has_fluid_segment(i) then
+                local seg_fluid = entity.get_fluid_segment_fluid(i)
+                if seg_fluid and fluids[seg_fluid.name] then
+                    local cap = entity.get_fluid_segment_capacity(i) - entity.get_fluid_capacity(i)
+                    local diff = cap - seg_fluid.amount
+                    fluids[seg_fluid.name] = (diff < 0 and -diff) or 0
+                end
+            end
+        end
     end
 
     for name, amount in pairs(fluids) do

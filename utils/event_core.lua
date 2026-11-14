@@ -61,7 +61,7 @@ local function on_event(event)
 
     local profiler = event_profilers[event.name]
     if not profiler then
-        profiler = { profiler = game.create_profiler(), count = 1 }
+        profiler = { profiler = helpers.create_profiler(), count = 1 }
         event_profilers[event.name] = profiler
     else
         profiler.profiler.restart()
@@ -103,7 +103,7 @@ local function on_nth_tick_event(event)
 
     local profiler = on_nth_tick_event_profilers[event.nth_tick]
     if not profiler then
-        profiler = { profiler = game.create_profiler(), count = 1 }
+        profiler = { profiler = helpers.create_profiler(), count = 1 }
         on_nth_tick_event_profilers[event.nth_tick] = profiler
     else
         profiler.profiler.restart()
